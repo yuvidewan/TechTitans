@@ -1,73 +1,73 @@
 import pandas as pd
 import joblib
+import numpy as np
 import warnings
 
-# Ignore minor warnings to keep the output clean
 warnings.filterwarnings('ignore')
 
-def predict_from_sample(sample_data: pd.DataFrame):
+def check_typing_pattern(sample_data: pd.DataFrame):
     """
-    Loads the trained model and associated files to predict the user
-    based on a new sample of keystroke data.
+    Loads the trained anomaly detection model and predicts whether a given
+    typing sample is normal (human) or an anomaly (potential bot).
 
     Args:
-        sample_data (pd.DataFrame): A DataFrame containing a single row of keystroke timing data.
+        sample_data (pd.DataFrame): A DataFrame with a single row of keystroke data.
     """
     try:
-        # --- 1. Load the saved model, scaler, and label encoder ---
-        print("Loading the trained model and helper files...")
-        model = joblib.load('final_keystroke_model.pkl')
-        scaler = joblib.load('scaler.pkl')
-        label_encoder = joblib.load('label_encoder.pkl')
-        print("Files loaded successfully.")
-
+        # Load the trained model and its specific scaler
+        model = joblib.load('anomaly_detection_model.pkl')
+        scaler = joblib.load('anomaly_scaler.pkl')
     except FileNotFoundError:
         print("Error: Could not find the required .pkl files.")
-        print("Please make sure 'final_keystroke_model.pkl', 'scaler.pkl', and 'label_encoder.pkl' are in the same directory.")
+        print("Please run the 'train_anomaly_detector.py' script first to generate the model files.")
         return
 
-    # --- 2. Prepare the new sample data ---
-    # Ensure the sample data has the same columns as the training data
-    # (We assume the sample_data DataFrame is already structured correctly)
-    
-    # Apply the SAME scaling transformation that was used during training
+    # --- 1. Prepare and Scale the Data ---
+    # Apply the same scaling transformation used during training
     sample_scaled = scaler.transform(sample_data)
-    print("\nNew sample data has been scaled.")
 
-    # --- 3. Make the prediction ---
-    print("Making a prediction...")
-    prediction_encoded = model.predict(sample_scaled)
+    # --- 2. Make the Prediction ---
+    prediction = model.predict(sample_scaled)
+    # The 'decision_function' gives a score. Negative values are more likely to be anomalies.
+    anomaly_score = model.decision_function(sample_scaled)
+
+    # --- 3. Interpret and Display the Result ---
+    print("\n--- Anomaly Detection Result ---")
+    print(f"Anomaly Score: {anomaly_score[0]:.4f} (Negative scores are more anomalous)")
     
-    # The model outputs a numerical prediction (e.g., [0])
-    # We need to decode it back to the original subject ID (e.g., 's002')
-    predicted_subject = label_encoder.inverse_transform(prediction_encoded)
-
-    # --- 4. Display the result ---
-    print("\n--- Prediction Result ---")
-    print(f"The model predicts that this typing pattern belongs to: {predicted_subject[0]}")
+    if prediction[0] == 1:
+        print("Prediction: NORMAL Pattern")
+        print("Interpretation: The typing behavior is consistent with a human user.")
+    else:
+        print("Prediction: ANOMALY DETECTED")
+        print("Interpretation: The typing behavior is suspicious and could be a bot.")
 
 
 if __name__ == '__main__':
     # =========================================================================
-    # ==  This is a sample of new, unseen data.                              ==
-    # ==  In a real application, this would come from the live user session. ==
+    # ==  You can test the model with different types of input data below.   ==
     # =========================================================================
     
-    # For this example, we'll just take the first row from your original dataset
-    # to simulate a new login attempt.
-    # IMPORTANT: You can replace this with any other row from your data to test.
+    # --- Example 1: Test with a REAL HUMAN sample ---
+    # We'll borrow a sample from the original dataset to simulate a normal user.
     try:
         full_df = pd.read_csv('keyboard_data.csv')
-        # Select a single row to test (e.g., the 100th row) and drop the labels
-        new_sample = full_df.iloc[[1000]].drop(['subject', 'sessionIndex', 'rep'], axis=1)
+        human_sample = full_df.iloc[[250]].drop(['subject', 'sessionIndex', 'rep'], axis=1)
         
-        # Display the user this sample actually belongs to
-        actual_user = full_df.iloc[1000]['subject']
-        print(f"--- Testing with a sample from user: {actual_user} ---")
-
-        # Call the prediction function
-        predict_from_sample(new_sample)
+        print("--- Checking a sample from a REAL HUMAN USER ---")
+        check_typing_pattern(human_sample)
 
     except FileNotFoundError:
-        print("Error: The original dataset 'keyboard_data.csv' is needed to create a test sample.")
-        print("Please ensure it is in the same directory.")
+        print("Error: Could not load 'DSL-StrongPasswordData.csv' to create a human sample for testing.")
+        print("Please ensure the dataset file is in the directory.")
+
+    print("\n" + "="*50 + "\n")
+
+    # --- Example 2: Test with a fake BOT sample ---
+    # A bot would have unnaturally fast and consistent timings.
+    # We create a new DataFrame with the correct column names for the bot sample.
+    bot_data = {col: [0.015] for col in human_sample.columns}
+    bot_sample = pd.DataFrame(bot_data)
+    
+    print("--- Checking a sample from a simulated BOT ---")
+    check_typing_pattern(bot_sample)
