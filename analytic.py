@@ -1,117 +1,102 @@
 import pandas as pd
 import numpy as np
-import xgboost as xgb
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import IsolationForest
 import joblib
 import warnings
 
-# Ignore minor warnings to keep the output clean
 warnings.filterwarnings('ignore')
 
-def train_keystroke_model(csv_filename: str):
+def train_anomaly_model(csv_filename: str):
     """
-    Loads keystroke data, trains a robust XGBoost classifier, 
-    evaluates it, and saves the final model and scaler.
+    Trains an Isolation Forest model on the keystroke data to detect anomalies.
 
     Args:
-        csv_filename (str): The path to the CSV file containing the keystroke data.
+        csv_filename (str): The path to the CSV file with normal human keystroke data.
     """
-    # --- 1. Load and Prepare the Data ---
+    # --- 1. Load the Data ---
     print(f"Loading data from '{csv_filename}'...")
     try:
         df = pd.read_csv(csv_filename)
+        # We only need the timing features for this model
+        features_df = df.drop(['subject', 'sessionIndex', 'rep'], axis=1)
     except FileNotFoundError:
         print(f"Error: The file '{csv_filename}' was not found.")
-        print("Please make sure the CSV file is in the same directory as this script.")
         return
+    print("Data loaded successfully.")
 
-    print("Data loaded successfully. Shape:", df.shape)
-
-    # Define features (X) and target (y)
-    features = df.columns.drop(['subject', 'sessionIndex', 'rep'])
-    X = df[features]
-    y = df['subject']
-
-    # --- 2. Encode Labels ---
-    label_encoder = LabelEncoder()
-    y_encoded = label_encoder.fit_transform(y)
-    
-    # --- 3. Split Data into Training and Testing Sets ---
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y_encoded, test_size=0.25, random_state=42, stratify=y_encoded
-    )
-    print(f"Training set size: {X_train.shape[0]} samples")
-    print(f"Testing set size: {X_test.shape[0]} samples")
-
-    # --- 4. Scale Numerical Features ---
+    # --- 2. Scale the Features ---
+    # It's crucial to scale data for distance-based algorithms like this
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    X_scaled = scaler.fit_transform(features_df)
     print("Features have been scaled.")
 
-    # --- 5. Train the XGBoost Model ---
-    print("\nTraining the XGBoost model...")
+    # --- 3. Train the Isolation Forest Model ---
+    print("\nTraining the Anomaly Detection model (Isolation Forest)...")
+    # contamination='auto' is a good starting point. It lets the model decide
+    # the threshold for what constitutes an anomaly.
+    # A random_state ensures the results are reproducible.
+    anomaly_model = IsolationForest(contamination='auto', random_state=42, n_jobs=-1)
     
-    model = xgb.XGBClassifier(
-        objective='multi:softmax',
-        num_class=len(label_encoder.classes_),
-        n_estimators=200,
-        learning_rate=0.1,
-        max_depth=5,
-        use_label_encoder=False,
-        eval_metric='mlogloss',
-        n_jobs=-1,
-        random_state=42
-    )
+    # We train the model on ALL the available human data
+    anomaly_model.fit(X_scaled)
+    print("Model training complete.")
+
+    # --- 4. Save the Model and Scaler ---
+    joblib.dump(anomaly_model, 'anomaly_detection_model.pkl')
+    joblib.dump(scaler, 'anomaly_scaler.pkl') # Use a different name to not overwrite the other scaler
+    print("\nAnomaly detection model and its scaler have been saved to .pkl files.")
+    print("You can now use these to detect non-human typing patterns.")
+
+
+def test_anomaly_predictions(csv_filename: str):
+    """
+    Loads the trained anomaly model and tests it on a normal sample and a
+    synthetically generated "bot" sample.
+    """
+    print("\n--- Testing Anomaly Predictions ---")
+    try:
+        # Load the saved model and scaler
+        model = joblib.load('anomaly_detection_model.pkl')
+        scaler = joblib.load('anomaly_scaler.pkl')
+        
+        # --- Create a NORMAL test sample (from the original data) ---
+        full_df = pd.read_csv(csv_filename)
+        normal_sample = full_df.iloc[[50]].drop(['subject', 'sessionIndex', 'rep'], axis=1)
+        
+        # --- Create an ANOMALOUS (bot-like) test sample ---
+        # A bot would have very fast, unnaturally consistent timings.
+        bot_data = {col: [0.01] for col in normal_sample.columns} # All timings are exactly 0.01s
+        bot_sample = pd.DataFrame(bot_data)
+
+    except FileNotFoundError:
+        print("Error: Could not find required files (.pkl or .csv). Please run the training function first.")
+        return
+
+    # --- 1. Test the NORMAL Sample ---
+    normal_scaled = scaler.transform(normal_sample)
+    normal_prediction = model.predict(normal_scaled)
     
-    # The .fit method is now called without the 'callbacks' argument
-    model.fit(X_train_scaled, y_train)
-    
-    print("\nModel training complete.")
+    print("\nPrediction for NORMAL (Human) Sample:")
+    print(f"Input Data: A real sample from user '{full_df.iloc[50]['subject']}'")
+    print(f"Model Output: {normal_prediction[0]}")
+    print(f"Interpretation: {'This is a NORMAL pattern (Human).' if normal_prediction[0] == 1 else 'This is an ANOMALY (Potential Bot).'}")
 
-    # --- 6. Evaluate the Model ---
-    print("\n--- Model Evaluation ---")
-    predictions = model.predict(X_test_scaled)
-    
-    accuracy = accuracy_score(y_test, predictions)
-    print(f"Model Accuracy: {accuracy * 100:.2f}%")
+    # --- 2. Test the ANOMALOUS Sample ---
+    bot_scaled = scaler.transform(bot_sample)
+    bot_prediction = model.predict(bot_scaled)
 
-    print("\nClassification Report:")
-    report = classification_report(
-        label_encoder.inverse_transform(y_test), 
-        label_encoder.inverse_transform(predictions)
-    )
-    print(report)
-
-    # --- 7. Visualize the Confusion Matrix ---
-    print("Generating confusion matrix...")
-    cm = confusion_matrix(y_test, predictions)
-    plt.figure(figsize=(18, 15))
-    sns.heatmap(cm, annot=False, fmt='d', cmap='Blues', 
-                xticklabels=label_encoder.classes_, yticklabels=label_encoder.classes_)
-    plt.title('Confusion Matrix - (Actual vs. Predicted Users)')
-    plt.ylabel('Actual Subject')
-    plt.xlabel('Predicted Subject')
-    plt.savefig('confusion_matrix.png')
-    print("Confusion matrix saved to 'confusion_matrix.png'")
-
-    # --- 8. Save the Final Model and Helper Objects ---
-    joblib.dump(model, 'final_keystroke_model.pkl')
-    joblib.dump(scaler, 'scaler.pkl')
-    joblib.dump(label_encoder, 'label_encoder.pkl')
-    print("\nFinal trained model, scaler, and label encoder have been saved to .pkl files.")
-    print("You can now load these to make predictions on new data without retraining.")
+    print("\nPrediction for ANOMALOUS (Bot) Sample:")
+    print("Input Data: Synthetically generated bot-like timings.")
+    print(f"Model Output: {bot_prediction[0]}")
+    print(f"Interpretation: {'This is a NORMAL pattern (Human).' if bot_prediction[0] == 1 else 'This is an ANOMALY (Potential Bot).'}")
 
 
 if __name__ == '__main__':
-    # =========================================================================
-    # ==  IMPORTANT: Change this variable to the name of your CSV file       ==
-    # =========================================================================
     DATASET_FILENAME = 'keyboard_data.csv'
     
-    train_keystroke_model(DATASET_FILENAME)
-
+    # Step 1: Train and save the model
+    train_anomaly_model(DATASET_FILENAME)
+    
+    # Step 2: Run a test to see it in action
+    test_anomaly_predictions(DATASET_FILENAME)
