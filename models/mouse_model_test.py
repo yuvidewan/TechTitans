@@ -53,7 +53,7 @@ if __name__ == '__main__':
     
     # --- Example 1: Test with a REAL HUMAN session ---
     try:
-        raw_df = pd.read_csv('modes/Test_Mouse.csv')
+        raw_df = pd.read_csv('models/Test_Mouse.csv')
         # Get all events for the first user/session to simulate a real session
         human_session = raw_df[raw_df['uid'] == raw_df['uid'].iloc[0]]
         
