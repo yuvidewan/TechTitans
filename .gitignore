@@ -13,3 +13,9 @@ env1/
 
 #csv files
 *.csv
+
+# photo files
+*.png
+
+# binary files
+*.pkl
