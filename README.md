@@ -13,3 +13,9 @@ source env1/bin/activate  # Linux/Mac
 env1\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
+
+## create training data
+```bash
+python generate_data.py
+```
+ 
