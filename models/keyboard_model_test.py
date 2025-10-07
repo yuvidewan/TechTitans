@@ -15,8 +15,8 @@ def check_typing_pattern(sample_data: pd.DataFrame):
     """
     try:
         # Load the trained model and its specific scaler
-        model = joblib.load('anomaly_detection_model.pkl')
-        scaler = joblib.load('anomaly_scaler.pkl')
+        model = joblib.load('models/anomaly_detection_model.pkl')
+        scaler = joblib.load('models/anomaly_scaler.pkl')
     except FileNotFoundError:
         print("Error: Could not find the required .pkl files.")
         print("Please run the 'train_anomaly_detector.py' script first to generate the model files.")
@@ -51,7 +51,7 @@ if __name__ == '__main__':
     # --- Example 1: Test with a REAL HUMAN sample ---
     # We'll borrow a sample from the original dataset to simulate a normal user.
     try:
-        full_df = pd.read_csv('keyboard_data.csv')
+        full_df = pd.read_csv('models/keyboard_data.csv')
         human_sample = full_df.iloc[[250]].drop(['subject', 'sessionIndex', 'rep'], axis=1)
         
         print("--- Checking a sample from a REAL HUMAN USER ---")
