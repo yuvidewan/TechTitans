@@ -43,8 +43,8 @@ def train_anomaly_model(csv_filename: str):
     print("Model training complete.")
 
     # --- 4. Save the Model and Scaler ---
-    joblib.dump(anomaly_model, 'anomaly_detection_model.pkl')
-    joblib.dump(scaler, 'anomaly_scaler.pkl') # Use a different name to not overwrite the other scaler
+    joblib.dump(anomaly_model, 'models/anomaly_detection_model.pkl')
+    joblib.dump(scaler, 'models/anomaly_scaler.pkl') # Use a different name to not overwrite the other scaler
     print("\nAnomaly detection model and its scaler have been saved to .pkl files.")
     print("You can now use these to detect non-human typing patterns.")
 
@@ -57,8 +57,8 @@ def test_anomaly_predictions(csv_filename: str):
     print("\n--- Testing Anomaly Predictions ---")
     try:
         # Load the saved model and scaler
-        model = joblib.load('anomaly_detection_model.pkl')
-        scaler = joblib.load('anomaly_scaler.pkl')
+        model = joblib.load('models/anomaly_detection_model.pkl')
+        scaler = joblib.load('models/anomaly_scaler.pkl')
         
         # --- Create a NORMAL test sample (from the original data) ---
         full_df = pd.read_csv(csv_filename)
@@ -93,7 +93,7 @@ def test_anomaly_predictions(csv_filename: str):
 
 
 if __name__ == '__main__':
-    DATASET_FILENAME = 'keyboard_data.csv'
+    DATASET_FILENAME = 'models/keyboard_data.csv'
     
     # Step 1: Train and save the model
     train_anomaly_model(DATASET_FILENAME)
