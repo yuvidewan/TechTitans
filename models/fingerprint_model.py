@@ -9,13 +9,12 @@ import matplotlib.pyplot as plt
 from ipaddress import ip_address
 
 # --- Configuration ---
-# **IMPORTANT**: Update these paths to point to your TWO most important IP dataset files.
 # This file should contain IP ranges mapped to an organization name (e.g., Cloudflare, Inc.)
 ASN_FILE_PATH = "models/asn-ipv4.csv" 
 # This file should contain IP ranges mapped to a country code (e.g., AU, CN)
 COUNTRY_FILE_PATH = "models/geo-whois-asn-country-ipv4.csv"
 
-# --- Part 1: IP Intelligence Database Loader (Upgraded for Multiple Files) ---
+# --- Part 1: IP Intelligence Database Loader 
 
 class IPIntelligence:
     """
